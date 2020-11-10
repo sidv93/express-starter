@@ -1,20 +1,40 @@
-import express, { Request, Response } from 'express';
-import bodyParser from 'body-parser';
+import express from 'express';
 import compression from 'compression';
+import bodyParser from 'body-parser';
+import helmet from 'helmet';
 import cors from 'cors';
-import path from 'path';
+import { db } from './config';
+import router from './routes';
+import { successhandler, errorhandler } from './middlewares';
 
-const app: express.Application = express();
+const app = express();
 
-app.set('port', 3000);
-app.use(compression()); // Compress all responses
+app.set('port', process.env.API_PORT || 80);
+app.use(compression());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(cors());
-app.use(express.static(path.join(__dirname, 'public'))); // Serve static pages and assets
+app.use(helmet());
 
-app.get('/', (req: Request, res: Response) => {
-    res.send('Hello');
+const corsOptions = {
+    methods: 'GET,PUT,PATCH,POST,DELETE',
+    allowedHeaders: 'Content-Type'
+};
+
+app.use(cors(corsOptions));
+
+db.connect().catch((err: any) => {
+    console.log('Mongo connection Error', err);
+    process.exit(0);
 });
+
+process.on('SIGINT', async () => {
+    console.log('Gracefully shutting down');
+    await db.disconnect();
+    process.exit(0);
+});
+
+app.use(router);
+app.use(successhandler);
+app.use(errorhandler);
 
 export default app;
